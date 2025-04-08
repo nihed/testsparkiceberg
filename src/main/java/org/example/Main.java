@@ -1,17 +1,22 @@
 package org.example;
 
 
+import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.VoidFunction;
+import org.apache.spark.api.r.BaseRRDD;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.storage.StorageLevel;
 import org.apache.spark.streaming.Durations;
 import org.apache.spark.streaming.StreamingContext;
+import org.apache.spark.streaming.api.java.JavaDStream;
 import org.apache.spark.streaming.api.java.JavaReceiverInputDStream;
 import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.receiver.Receiver;
@@ -60,41 +65,41 @@ public class Main {
         });
         sparkSession.sql("CALL spark_catalog.system.rewrite_data_files(table => 'testtable', options => map('rewrite-all','true','min-input-files','1000'))");
 
-        System.out.println(sparkSession.sql("select * from testtable ").count());
-        sleep(5000);
+
+     sparkSession.sql("select * from spark_catalog.default.testtable.files ").foreach(new ForeachFunction<Row>() {
+         @Override
+         public void call(Row row) throws Exception {
+             System.out.println(row.toString());
+         }
+     });
+        sleep(1000);
         JavaReceiverInputDStream<String> inputDStream = jssc.receiverStream(new MyWikiReceiver(StorageLevel.DISK_ONLY()));
 
 
         inputDStream.count().print();
 
-        Function<String, String> extractWiki = new Function<String, String>() {
-            @Override
-            public String call(String t) throws Exception {
-                Pattern pattern = Pattern.compile(",\"wiki\":\"(.*?)\",");
-                Matcher matcher = pattern.matcher(t);
-                if (matcher.find()) {
-                    return matcher.group(1);
-                }
-                return null;
-            }
-        };
 
-        inputDStream.map(extractWiki).map(new Function<String, JavaRecord>() {
+
+        JavaDStream<JavaRecord> map = inputDStream.map(new Function<String, JavaRecord>() {
             @Override
             public JavaRecord call(String s) throws Exception {
+                //System.out.println(s);
                 return new JavaRecord(s);
             }
-        }).foreachRDD(new VoidFunction<JavaRDD<JavaRecord>>() {
+        });
+        map.foreachRDD(new VoidFunction<JavaRDD<JavaRecord>>() {
             @Override
             public void call(JavaRDD<JavaRecord> javaRecordJavaRDD) throws Exception {
                 Dataset<Row> dataFrame = sparkSession.createDataFrame(javaRecordJavaRDD, JavaRecord.class);
 
-                dataFrame.writeTo("testtable").append();
-                sparkSession.sql("CALL spark_catalog.system.rewrite_data_files(table => 'testtable', options => map('rewrite-all','true','min-input-files','1000'))");
+                dataFrame.writeTo("spark_catalog.default.testtable").append();
+
+                sparkSession.sql("CALL spark_catalog.system.rewrite_data_files(table => 'spark_catalog.default.testtable', options => map('rewrite-all','true','min-input-files','1000','max-concurrent-file-group-rewrites','1000'))");
 
 
             }
         });
+
 
 
         jssc.start();
