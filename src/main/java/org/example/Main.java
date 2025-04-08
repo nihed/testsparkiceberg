@@ -55,7 +55,7 @@ public class Main {
         JavaStreamingContext jssc = new JavaStreamingContext(streamingContext);
 
 
-        sparkSession.sql("create table IF NOT EXISTS testtable (word string) using iceberg TBLPROPERTIES('format-version'='2')   ");
+        sparkSession.sql("create table IF NOT EXISTS testtable (word string) using iceberg TBLPROPERTIES('format-version'='2', 'write.metadata.delete-after-commit.enabled'='true', 'write.metadata.previous-versions-max'='10'  )   ");
         System.out.println("-- ---- ---- --- ");
         sparkSession.sql("show create table testtable").foreach(new ForeachFunction<Row>() {
             @Override
@@ -72,7 +72,7 @@ public class Main {
              System.out.println(row.toString());
          }
      });
-        sleep(1000);
+        sleep(20000);
         JavaReceiverInputDStream<String> inputDStream = jssc.receiverStream(new MyWikiReceiver(StorageLevel.DISK_ONLY()));
 
 
@@ -95,7 +95,7 @@ public class Main {
                 dataFrame.writeTo("spark_catalog.default.testtable").append();
 
                 sparkSession.sql("CALL spark_catalog.system.rewrite_data_files(table => 'spark_catalog.default.testtable', options => map('rewrite-all','true','min-input-files','1000','max-concurrent-file-group-rewrites','1000'))");
-                sparkSession.sql("CALL spark_catalog.system.expire_snapshots('spark_catalog.default.testtable', TIMESTAMP '2025-06-30 00:00:00.000', 1)");
+                sparkSession.sql("CALL spark_catalog.system.expire_snapshots('spark_catalog.default.testtable', TIMESTAMP '2025-06-30 00:00:00.000', 10)");
                 sparkSession.sql("CALL spark_catalog.system.remove_orphan_files(table => 'spark_catalog.default.testtable')");
 
 
