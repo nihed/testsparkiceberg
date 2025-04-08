@@ -26,6 +26,9 @@ import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.lang.Thread.sleep;
+
+
 /**
  * Sample application to collect streaming data from Wikimedia for a processing on Spark
  */
@@ -55,6 +58,10 @@ public class Main {
                 System.out.println(row.toString());
             }
         });
+        sparkSession.sql("CALL spark_catalog.system.rewrite_data_files(table => 'testtable', options => map('rewrite-all','true','min-input-files','1000'))");
+
+        System.out.println(sparkSession.sql("select * from testtable ").count());
+        sleep(5000);
         JavaReceiverInputDStream<String> inputDStream = jssc.receiverStream(new MyWikiReceiver(StorageLevel.DISK_ONLY()));
 
 
@@ -83,6 +90,7 @@ public class Main {
                 Dataset<Row> dataFrame = sparkSession.createDataFrame(javaRecordJavaRDD, JavaRecord.class);
 
                 dataFrame.writeTo("testtable").append();
+                sparkSession.sql("CALL spark_catalog.system.rewrite_data_files(table => 'testtable', options => map('rewrite-all','true','min-input-files','1000'))");
 
 
             }
