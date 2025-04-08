@@ -3,6 +3,7 @@ package org.example;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
+
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.api.java.function.Function;
@@ -44,10 +45,13 @@ public class Main
         SparkConf conf = new SparkConf()
                 .setAppName("Spark Streaming Wiki")
                 .set("spark.sql.extensions","org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-                //.set("spark.sql.catalog.spark_catalog","org.apache.iceberg.spark.SparkSessionCatalog")
+
                // .set("spark.sql.catalog.spark_catalog.type","hive")
                 .set("spark.sql.catalog.local","org.apache.iceberg.spark.SparkCatalog")
                 .set("spark.sql.catalog.local.type","hadoop")
+                .set("spark.sql.catalog.spark_catalog","org.apache.iceberg.spark.SparkCatalog")
+                .set("spark.sql.catalog.spark_catalog.type","hadoop")
+                .set("spark.sql.catalog.spark_catalog.warehouse","/tmp/warehouse")
                 .set("spark.sql.catalog.local.warehouse","/tmp/warehouse")
 
                 .setMaster("local[2]");
@@ -56,7 +60,7 @@ public class Main
         JavaStreamingContext jssc = new JavaStreamingContext(streamingContext);
 
 
-        sparkSession.sql("create table testtable (word string) using iceberg TBLPROPERTIES('format-version'='2')   location '/Users/nihedmbarek/IdeaProjects/SparkStreamIceberg/spark-warehouse/testtable'");
+        sparkSession.sql("create table IF NOT EXISTS testtable (word string) using iceberg TBLPROPERTIES('format-version'='2')   ");
         System.out.println("-- ---- ---- --- ");
         sparkSession.sql("show create table testtable").foreach(new ForeachFunction<Row>() {
             @Override
